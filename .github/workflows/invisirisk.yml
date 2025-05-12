@@ -45,15 +45,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '22'
+          node-version: '20'  # Use stable version instead of 22
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libkrb5-dev libx11-dev libxkbfile-dev pkg-config
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies without browser download
+        run: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
+
+      - name: Install Playwright Browsers (with deps)
+        run: npx playwright install --with-deps || npx playwright install --with-deps
 
       - name: Cleanup PSE
         if: always()
