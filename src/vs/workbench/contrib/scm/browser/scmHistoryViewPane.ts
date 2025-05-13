@@ -15,7 +15,7 @@ import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } fro
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -397,12 +397,10 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const labelContainer = append(element, $('.label-container'));
 		element.appendChild(labelContainer);
 
-		const disposables = new DisposableStore();
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
-		disposables.add(actionBar);
 
-		return { element, margin, graphContainer, label: iconLabel, labelContainer, actionBar, elementDisposables: new DisposableStore(), disposables };
+		return { element, margin, graphContainer, label: iconLabel, labelContainer, actionBar, elementDisposables: new DisposableStore(), disposables: combinedDisposable(iconLabel, actionBar) };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -726,7 +724,7 @@ class HistoryItemLoadMoreRenderer implements ITreeRenderer<SCMHistoryItemLoadMor
 		const historyItemPlaceholderContainer = append(element, $('.history-item-placeholder'));
 		const historyItemPlaceholderLabel = new IconLabel(historyItemPlaceholderContainer, { supportIcons: true });
 
-		return { element, graphPlaceholder, historyItemPlaceholderContainer, historyItemPlaceholderLabel, elementDisposables: new DisposableStore(), disposables: new DisposableStore() };
+		return { element, graphPlaceholder, historyItemPlaceholderContainer, historyItemPlaceholderLabel, elementDisposables: new DisposableStore(), disposables: historyItemPlaceholderLabel };
 	}
 
 	renderElement(element: ITreeNode<SCMHistoryItemLoadMoreTreeElement, void>, index: number, templateData: LoadMoreTemplate, height: number | undefined): void {
@@ -1735,24 +1733,32 @@ export class SCMHistoryViewPane extends ViewPane {
 				? historyItemParentId.substring(0, historyItem.displayId.length)
 				: historyItemParentId;
 
-			const originalUriTitle = historyItemChange.originalUri
-				? `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`
-				: undefined;
+			if (historyItemChange.originalUri && historyItemChange.modifiedUri) {
+				// Diff Editor
+				const originalUriTitle = `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`;
+				const modifiedUriTitle = `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`;
 
-			const modifiedUriTitle = historyItemChange.modifiedUri
-				? `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`
-				: undefined;
-
-			const title = originalUriTitle && modifiedUriTitle
-				? `${originalUriTitle} ↔ ${modifiedUriTitle}`
-				: originalUriTitle ?? modifiedUriTitle;
-
-			await this._editorService.openEditor({
-				label: title,
-				original: { resource: historyItemChange.originalUri },
-				modified: { resource: historyItemChange.modifiedUri },
-				options: e.editorOptions,
-			});
+				const title = `${originalUriTitle} ↔ ${modifiedUriTitle}`;
+				await this._editorService.openEditor({
+					label: title,
+					original: { resource: historyItemChange.originalUri },
+					modified: { resource: historyItemChange.modifiedUri },
+					options: e.editorOptions
+				});
+			} else if (historyItemChange.modifiedUri) {
+				await this._editorService.openEditor({
+					label: `${basename(historyItemChange.modifiedUri.fsPath)} (${historyItemDisplayId})`,
+					resource: historyItemChange.modifiedUri,
+					options: e.editorOptions
+				});
+			} else if (historyItemChange.originalUri) {
+				// Editor (Deleted)
+				await this._editorService.openEditor({
+					label: `${basename(historyItemChange.originalUri.fsPath)} (${historyItemParentDisplayId})`,
+					resource: historyItemChange.originalUri,
+					options: e.editorOptions
+				});
+			}
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
 			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;
 			if (!pageOnScroll) {
