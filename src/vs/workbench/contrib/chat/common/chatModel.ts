@@ -19,7 +19,7 @@ import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/co
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
+import { isLocation, Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
@@ -70,6 +70,11 @@ export const enum OmittedState {
 
 export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'tool';
+}
+
+export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'toolset';
+	readonly value: undefined;
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
@@ -211,9 +216,26 @@ export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEn
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
-	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
+	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
+	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
+
+
+export namespace IChatRequestVariableEntry {
+
+	/**
+	 * Returns URI of the passed variant entry. Return undefined if not found.
+	 */
+	export function toUri(entry: IChatRequestVariableEntry): URI | undefined {
+		return URI.isUri(entry.value)
+			? entry.value
+			: isLocation(entry.value)
+				? entry.value.uri
+				: undefined;
+	}
+}
+
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
