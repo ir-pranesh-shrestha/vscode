@@ -125,12 +125,10 @@ export class McpResourcePickHelper {
 		quickInput.totalSteps = todo.length;
 		quickInput.ignoreFocusOut = true;
 
-		const initialCompletions = todo.map(variable => rt.complete(variable.name, '', {}, cts.token));
-
 		try {
 			for (let i = 0; i < todo.length; i++) {
 				const variable = todo[i];
-				const resolved = await this._promptForTemplateValue(quickInput, variable, initialCompletions[i], vars, rt);
+				const resolved = await this._promptForTemplateValue(quickInput, variable, vars, rt);
 				if (resolved === undefined) {
 					return undefined;
 				}
@@ -143,9 +141,9 @@ export class McpResourcePickHelper {
 		}
 	}
 
-	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, initialCompletions: Promise<string[]>, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<string | undefined> {
+	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<string | undefined> {
 		const store = new DisposableStore();
-		const completions = new Map<string, Promise<string[]>>([['', initialCompletions]]);
+		const completions = new Map<string, Promise<string[]>>([]);
 
 		const variablesWithPlaceholders = { ...variablesSoFar };
 		for (const variable of rt.template.components.flatMap(c => typeof c === 'object' ? c.variables : [])) {
@@ -199,7 +197,7 @@ export class McpResourcePickHelper {
 
 		const getCompletionItemsScheduler = store.add(new RunOnceScheduler(getCompletionItems, 300));
 
-		return new Promise(resolve => {
+		return new Promise<string | undefined>(resolve => {
 			store.add(input.onDidHide(() => resolve(undefined)));
 			store.add(input.onDidAccept(() => {
 				const item = input.selectedItems[0];
@@ -225,7 +223,7 @@ export class McpResourcePickHelper {
 			}));
 
 			getCompletionItems();
-		});
+		}).finally(() => store.dispose());
 	}
 
 	public getPicks(onChange: (value: Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>) => void, token?: CancellationToken) {
