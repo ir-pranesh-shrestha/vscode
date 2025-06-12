@@ -1,8 +1,6 @@
-name: Vscode    
+name: VSCODE x InvisiRisk
 
 on:
-  schedule:
-    - cron: '25 1 * * 1'  # every Monday morning
   workflow_dispatch:
 
 permissions:
@@ -12,54 +10,34 @@ permissions:
   actions: write
 
 jobs:
-  sync-and-build:
+  test:
     runs-on: ubuntu-latest
-    name: Sync fork and Run build
-
+    name: Run build
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up Git
-        run: |
-          git config user.name "ir-paras-oli"
-          git config user.email "paras.oli@invisirisk.com"
-
-      - name: Add upstream and sync fork
-        run: |
-          git remote add upstream https://github.com/microsoft/vscode.git
-          git fetch upstream
-          git checkout main
-          git merge upstream/main --no-edit
-          git push https://x-access-token:${{ secrets.MY_PAT }}@github.com/ir-paras-oli/vscode main
-
       - name: Setup PSE
-        uses: invisirisk/pse-action@latest
+        uses: invisirisk/pse-action@test
         with:
-          api_url: "https://app.invisirisk.com"
-          app_token: ${{ secrets.IR_API_KEY }}
+          api_url: "https://app.dev.invisirisk.com"
+          app_token: ${{ secrets.IR_API_KEY_DEV }}
+
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'  # Use stable version instead of 22
+          node-version: '18'
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libkrb5-dev libx11-dev libxkbfile-dev pkg-config
-
-      - name: Install dependencies without browser download
-        run: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
-
-      - name: Install Playwright Browsers (with deps)
-        run: npx playwright install --with-deps || npx playwright install --with-deps
+      - name: Install dependencies
+        run: npm install
 
       - name: Cleanup PSE
         if: always()
-        uses: invisirisk/pse-action@latest
+        uses: invisirisk/pse-action@test
         with:
           cleanup: "true"
+          
+      - name: Gather Job status
+        if: always()
+        uses: invisirisk/pse-action@test
+        with:
+          get_jobs: "true"
